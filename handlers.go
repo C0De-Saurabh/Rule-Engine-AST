@@ -2,46 +2,92 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 )
 
-func home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
+// handleCreateRule handles the creation of a new rule via the API
+func handleCreateRule(w http.ResponseWriter, r *http.Request) {
+	var ruleString string
+	if err := json.NewDecoder(r.Body).Decode(&ruleString); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
+	// Validate the rule string
+	if err := validateRule(ruleString); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create the AST
+	ast, err := createRule(ruleString)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return the AST as JSON
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"message": "Welcome to the Rule Engine API"}`)
+	json.NewEncoder(w).Encode(ast)
 }
 
-func create_rule(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// handleCombineRules handles the combination of multiple rules via the API
+func handleCombineRules(w http.ResponseWriter, r *http.Request) {
+	var ruleStrings []string
+	if err := json.NewDecoder(r.Body).Decode(&ruleStrings); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Read the request body
-	body, err := io.ReadAll(r.Body)
+	// Create ASTs for each rule string
+	var asts []*Node
+	for _, ruleString := range ruleStrings {
+		ast, err := createRule(ruleString)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		asts = append(asts, ast)
+	}
+
+	// Combine the ASTs
+	combinedAST, err := combineRules(asts)
 	if err != nil {
-		http.Error(w, "Unable to read request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	// Parse the JSON data
-	var rule map[string]interface{}
-	if err := json.Unmarshal(body, &rule); err != nil {
-		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Here you can process the rule, for now, we'll just respond with a success message
+	// Return the combined AST as JSON
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response := map[string]string{"message": "Rule created successfully"}
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(combinedAST)
+}
+
+// handleEvaluateRule handles the evaluation of a rule against provided data via the API
+func handleEvaluateRule(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		AST  *Node                  `json:"ast"`
+		Data map[string]interface{} `json:"data"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the data
+	if err := validateData(payload.Data); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Evaluate the rule
+	result, err := evaluateRule(payload.AST, payload.Data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return the evaluation result as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"result": result})
 }
