@@ -53,9 +53,9 @@ func CombineRules(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Combine the rules with the logical AND operator
-	combinedRule := request.Rules[0]
+	combinedRule := "(" + request.Rules[0] + ")"
 	for i := 1; i < len(request.Rules); i++ {
-		combinedRule = combinedRule + " && " + request.Rules[i]
+		combinedRule = combinedRule + " && (" + request.Rules[i] + ")"
 	}
 
 	// Save the combined rule

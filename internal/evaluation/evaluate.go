@@ -13,9 +13,9 @@ func EvaluateNode(node *ast.Node, data map[string]interface{}) bool {
 
 	// If the node has logical operators (AND, OR), evaluate the left and right nodes.
 	switch node.Operator {
-	case "and":
+	case "and", "&&":
 		return EvaluateNode(node.Left, data) && EvaluateNode(node.Right, data)
-	case "or":
+	case "or", "||":
 		return EvaluateNode(node.Left, data) || EvaluateNode(node.Right, data)
 	}
 

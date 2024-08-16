@@ -36,10 +36,10 @@ func Tokenizer(input string) []Token {
 		case char == ')':
 			tokens = append(tokens, Token{Type: TokenParenR, Value: ")"})
 			i++
-		case strings.HasPrefix(input[i:], "AND"):
+		case strings.HasPrefix(input[i:], "AND"), strings.HasPrefix(input[i:], "&&"):
 			tokens = append(tokens, Token{Type: TokenAnd, Value: "AND"})
 			i += 3
-		case strings.HasPrefix(input[i:], "OR"):
+		case strings.HasPrefix(input[i:], "OR"), strings.HasPrefix(input[i:], "||"):
 			tokens = append(tokens, Token{Type: TokenOr, Value: "OR"})
 			i += 2
 		case char == ' ':
