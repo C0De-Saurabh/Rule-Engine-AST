@@ -1,46 +1,37 @@
 package main
 
-import (
-	"errors"
-)
+import "errors"
 
-// combineRules takes multiple ASTs and combines them into a single AST
-func combineRules(rules []*Node) (*Node, error) {
+// combineRules combines multiple ASTs into a single AST with an AND operator.
+func combineRules(rules []string) (*ASTNode, error) {
 	if len(rules) == 0 {
-		return nil, errors.New("no rules provided")
+		return nil, errors.New("no rules to combine")
 	}
 
-	// Combine ASTs by connecting them with an AND operator
-	combinedRoot := rules[0]
-	for _, rule := range rules[1:] {
-		combinedRoot = &Node{
-			Type:  "operator",
-			Value: "AND",
-			Left:  combinedRoot,
-			Right: rule,
+	if len(rules) == 1 {
+		return createRule(rules[0])
+	}
+
+	combinedAST := &ASTNode{
+		Type:  "operator",
+		Value: "AND",
+	}
+
+	var leftAST *ASTNode
+	for i, rule := range rules {
+		ast, err := createRule(rule)
+		if err != nil {
+			return nil, err
+		}
+
+		if i == 0 {
+			leftAST = ast
+		} else {
+			combinedAST.Left = leftAST
+			combinedAST.Right = ast
+			leftAST = combinedAST
 		}
 	}
 
-	// Optimize the combined AST
-	combinedRoot = optimizeAST(combinedRoot)
-	return combinedRoot, nil
-}
-
-// optimizeAST removes redundancy and simplifies the AST
-func optimizeAST(root *Node) *Node {
-	if root == nil {
-		return nil
-	}
-
-	// Example: Remove redundant AND/OR nodes
-	if root.Type == "operator" && root.Left != nil && root.Right != nil {
-		if root.Value == root.Left.Value && root.Value == root.Right.Value {
-			return root.Left
-		}
-	}
-
-	// Recursively optimize the left and right subtrees
-	root.Left = optimizeAST(root.Left)
-	root.Right = optimizeAST(root.Right)
-	return root
+	return combinedAST, nil
 }

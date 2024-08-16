@@ -5,89 +5,78 @@ import (
 	"net/http"
 )
 
-// handleCreateRule handles the creation of a new rule via the API
-func handleCreateRule(w http.ResponseWriter, r *http.Request) {
-	var ruleString string
-	if err := json.NewDecoder(r.Body).Decode(&ruleString); err != nil {
+// Struct for the request payload when creating a rule
+type CreateRuleRequest struct {
+	Rule string `json:"rule"`
+}
+
+// Struct for the request payload when combining rules
+type CombineRulesRequest struct {
+	Rules []string `json:"rules"`
+}
+
+// Struct for the request payload when evaluating a rule against JSON data
+type EvaluateRuleRequest struct {
+	AST  ASTNode                `json:"ast"`
+	Data map[string]interface{} `json:"data"`
+}
+
+// Handler to create a rule and return its AST
+func createRuleHandler(w http.ResponseWriter, r *http.Request) {
+	var req CreateRuleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Validate the rule string
-	if err := validateRule(ruleString); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Create the AST
-	ast, err := createRule(ruleString)
+	// Call the function to create the AST from the rule string
+	ast, err := createRule(req.Rule)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to create rule: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return the AST as JSON
+	// Return the AST as a JSON response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ast)
 }
 
-// handleCombineRules handles the combination of multiple rules via the API
-func handleCombineRules(w http.ResponseWriter, r *http.Request) {
-	var ruleStrings []string
-	if err := json.NewDecoder(r.Body).Decode(&ruleStrings); err != nil {
+// Handler to combine multiple rules into a single AST
+func combineRulesHandler(w http.ResponseWriter, r *http.Request) {
+	var req CombineRulesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Create ASTs for each rule string
-	var asts []*Node
-	for _, ruleString := range ruleStrings {
-		ast, err := createRule(ruleString)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		asts = append(asts, ast)
-	}
-
-	// Combine the ASTs
-	combinedAST, err := combineRules(asts)
+	// Call the function to combine the rules into one AST
+	combinedAST, err := combineRules(req.Rules)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to combine rules: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return the combined AST as JSON
+	// Return the combined AST as a JSON response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(combinedAST)
 }
 
-// handleEvaluateRule handles the evaluation of a rule against provided data via the API
-func handleEvaluateRule(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		AST  *Node                  `json:"ast"`
-		Data map[string]interface{} `json:"data"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+// Handler to evaluate a rule against JSON data
+func evaluateRuleHandler(w http.ResponseWriter, r *http.Request) {
+	var req EvaluateRuleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Validate the data
-	if err := validateData(payload.Data); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Evaluate the rule
-	result, err := evaluateRule(payload.AST, payload.Data)
+	// Call the function to evaluate the AST against the provided data
+	result, err := evaluateRule(&req.AST, req.Data)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to evaluate rule: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return the evaluation result as JSON
+	// Return the evaluation result as a JSON response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"result": result})
 }
