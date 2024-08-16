@@ -10,5 +10,6 @@ func SetupRouter() *mux.Router {
 	r.HandleFunc("/create_rule", CreateRule).Methods("POST")
 	r.HandleFunc("/combine_rules", CombineRules).Methods("POST")
 	r.HandleFunc("/evaluate_rule", EvaluateRule).Methods("POST")
+	r.HandleFunc("/delete_rule", DeleteRule).Methods("POST")
 	return r
 }

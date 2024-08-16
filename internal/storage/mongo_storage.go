@@ -97,3 +97,18 @@ func GetMongoClient() (*mongo.Client, error) {
 
 	return client, nil
 }
+
+// DeleteRule deletes a rule by rule_id from the MongoDB collection.
+func DeleteRule(ruleID string) error {
+	collection := client.Database("rule_engine").Collection("rules") // Replace with your method to get the MongoDB collection
+
+	filter := bson.M{"rule_id": ruleID}
+
+	// Delete the rule document
+	_, err := collection.DeleteOne(context.TODO(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -138,3 +138,39 @@ func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
+
+// DeleteRule handles the deletion of a rule from the storage.
+
+// DeleteRuleRequest defines the structure for the delete rule request body.
+type DeleteRuleRequest struct {
+	RuleID string `json:"rule_id"`
+}
+
+// DeleteRule handles the deletion of a rule by rule_id.
+func DeleteRule(w http.ResponseWriter, r *http.Request) {
+	var request DeleteRuleRequest
+
+	// Decode the JSON request body to get the rule_id
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	if request.RuleID == "" {
+		http.Error(w, "Missing rule_id", http.StatusBadRequest)
+		return
+	}
+
+	// Delete the rule
+	err := storage.DeleteRule(request.RuleID)
+	if err == mongo.ErrNoDocuments {
+		http.Error(w, "Rule not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, "Failed to delete rule", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Rule deleted successfully"))
+}
