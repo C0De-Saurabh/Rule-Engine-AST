@@ -15,41 +15,23 @@ import (
 // CreateRule handles the creation of a rule from a string.
 func CreateRule(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		RuleID      string   `json:"rule_id"`
-		RuleStrings []string `json:"rule_strings"`
+		RuleID     string `json:"rule_id"`
+		RuleString string `json:"rule_string"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
 	}
 
-	// Combine the rule strings into a single AST
-	var astNodes []*ast.Node
-	for _, ruleString := range request.RuleStrings {
-		astNode := ast.ParseAST(ruleString)
-		if astNode == nil {
-			http.Error(w, "Failed to parse rule string", http.StatusBadRequest)
-			return
-		}
-		astNodes = append(astNodes, astNode)
-	}
-
-	astRoot := ast.CombineASTs(astNodes)
-	if astRoot == nil {
-		http.Error(w, "Failed to combine ASTs", http.StatusInternalServerError)
-		return
-	}
-
-	// Save the combined AST to MongoDB
-	err := storage.SaveRule(request.RuleID, request.RuleStrings)
-	if err != nil {
+	// Save the rule
+	if err := storage.SaveRule(request.RuleID, request.RuleString); err != nil {
 		http.Error(w, "Failed to save rule", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "rules combined and saved successfully",
+		"status":  "Rule Saved successfully",
 		"rule_id": request.RuleID,
 	})
 }
@@ -57,7 +39,8 @@ func CreateRule(w http.ResponseWriter, r *http.Request) {
 // CombineRules handles the combination of multiple rules.
 func CombineRules(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Rules []string `json:"rules"`
+		RuleID string   `json:"rule_id"`
+		Rules  []string `json:"rules"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
@@ -69,39 +52,32 @@ func CombineRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Combine the rules
-	var astNodes []*ast.Node
-	for _, ruleString := range request.Rules {
-		astNode := ast.ParseAST(ruleString)
-		if astNode == nil {
-			http.Error(w, "Failed to parse rule string", http.StatusBadRequest)
-			return
-		}
-		astNodes = append(astNodes, astNode)
+	// Combine the rules with the logical AND operator
+	combinedRule := request.Rules[0]
+	for i := 1; i < len(request.Rules); i++ {
+		combinedRule = combinedRule + " && " + request.Rules[i]
 	}
 
-	astRoot := ast.CombineASTs(astNodes)
-	if astRoot == nil {
-		http.Error(w, "Failed to combine ASTs", http.StatusInternalServerError)
+	// Save the combined rule
+	if err := storage.SaveRule(request.RuleID, combinedRule); err != nil {
+		http.Error(w, "Failed to save combined rule", http.StatusInternalServerError)
 		return
 	}
-	log.Println("Combined AST Root:")
-	// ast.PrintAST(astRoot, "",)
 
-	// You might want to save or return the combined rule as needed
-	// For now, let's just respond with success
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "rules combined successfully",
+		"status":  "Rules combined successfully",
+		"rule_id": request.RuleID,
 	})
 }
 
 // EvaluateRequest defines the structure of the request body for evaluating rules.
 type EvaluateRequest struct {
 	RuleID string                 `json:"rule_id"`
-	Data   map[string]interface{} `bson:"data"`
+	Data   map[string]interface{} `json:"data"`
 }
 
+// EvaluateRule handles the evaluation of a rule against provided data.
 func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 	var request EvaluateRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -109,7 +85,7 @@ func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RuleStrings, err := storage.RetrieveRule(request.RuleID)
+	ruleString, err := storage.RetrieveRule(request.RuleID)
 	if err == mongo.ErrNoDocuments {
 		http.Error(w, "Rule not found", http.StatusNotFound)
 		return
@@ -123,19 +99,15 @@ func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 	for key, value := range request.Data {
 		switch v := value.(type) {
 		case float64:
-			// Assuming that all numeric values should be int, cast them
 			data[key] = int(v)
 		default:
-			// For non-numeric values, keep them as they are
 			data[key] = v
 		}
 	}
 
-	dataOnly := data
+	log.Printf("Deserialized data: %+v", data)
 
-	log.Printf("Deserialized data: %+v", dataOnly)
-
-	astNode := ast.ParseAST(RuleStrings[0])
+	astNode := ast.ParseAST(ruleString)
 	if astNode == nil {
 		http.Error(w, "Failed to parse rule string", http.StatusBadRequest)
 		return
@@ -147,7 +119,7 @@ func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer wg.Done()
-		result = evaluation.EvaluateNode(astNode, dataOnly)
+		result = evaluation.EvaluateNode(astNode, data)
 		log.Printf("Evaluation Result: %v", result)
 	}()
 
@@ -158,7 +130,7 @@ func EvaluateRule(w http.ResponseWriter, r *http.Request) {
 		Rule   string `json:"rule"`
 	}{
 		Result: result,
-		Rule:   RuleStrings[0],
+		Rule:   ruleString,
 	}
 
 	w.WriteHeader(http.StatusOK)

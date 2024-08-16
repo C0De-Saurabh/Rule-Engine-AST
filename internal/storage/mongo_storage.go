@@ -23,7 +23,7 @@ func init() {
 }
 
 // SaveRule saves a rule and its AST to MongoDB using rule_id
-func SaveRule(ruleID string, rule []string) error {
+func SaveRule(ruleID string, rule string) error {
 	collection := client.Database("rule_engine").Collection("rules")
 
 	var id interface{}
@@ -50,7 +50,7 @@ func SaveRule(ruleID string, rule []string) error {
 }
 
 // RetrieveRule retrieves a rule's AST from MongoDB using ruleID
-func RetrieveRule(ruleID string) ([]string, error) {
+func RetrieveRule(ruleID string) (string, error) {
 	collection := client.Database("rule_engine").Collection("rules")
 
 	var id interface{}
@@ -66,11 +66,11 @@ func RetrieveRule(ruleID string) ([]string, error) {
 	filter := bson.M{"_id": id}
 
 	var result struct {
-		Rule []string `bson:"rule"`
+		Rule string `bson:"rule"`
 	}
 	err = collection.FindOne(context.TODO(), filter).Decode(&result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve rule: %w", err)
+		return " ", fmt.Errorf("failed to retrieve rule: %w", err)
 	}
 
 	return result.Rule, nil
